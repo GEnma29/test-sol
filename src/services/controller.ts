@@ -49,25 +49,37 @@ export const getMyTokenSaleInfo = async function (req: Request, res: Response, n
         status: StatusType.Successed
     });
 
-    let amountSolMate, amountETH, amountBNB, amountSOL, amountStables = 0;
-    await myTransactions.map(el => {
-        if(el.chain_id == ETH_CHAIN_ID && el.token_address == ZERO_ADDRESS){
-            amountSolMate = amountSolMate + el.amount;
-            amountETH = amountETH + el.token_amount;
+    const {
+        amountSolMate,
+        amountETH,
+        amountBNB,
+        amountSOL,
+        amountStables
+      } = myTransactions.reduce(
+        (acc, el) => {
+          if (el.token_address === ZERO_ADDRESS) {
+            acc.amountSolMate += el.amount;
+      
+            const chainIdMapping = {
+              [ETH_CHAIN_ID]: "amountETH",
+              [BSC_CHAIN_ID]: "amountBNB",
+              [SOL_CHAIN]: "amountSOL"
+            };
+      
+            const chainKey = chainIdMapping[el.chain_id] || "amountStables";
+            acc[chainKey] += el.token_amount;
+          }
+      
+          return acc;
+        },
+        {
+          amountSolMate: 0,
+          amountETH: 0,
+          amountBNB: 0,
+          amountSOL: 0,
+          amountStables: 0
         }
-        if(el.chain_id == BSC_CHAIN_ID && el.token_address == ZERO_ADDRESS){
-            amountSolMate = amountSolMate + el.amount;
-            amountBNB  = amountBNB + el.token_amount;
-        }
-        if(el.chain_id == SOL_CHAIN && el.token_address == ZERO_ADDRESS){
-            amountSolMate = amountSolMate + el.amount;
-            amountSOL = amountSOL + el.token_amount;
-        }
-        if(el.token_address != ZERO_ADDRESS){
-            amountSolMate = amountSolMate + el.amount;
-            amountStables = amountStables + el.token_amount;
-        }
-    })
+      );
 
     return res.status(200)
             .json({
@@ -260,8 +272,13 @@ export const processEVM = async function (req: Request, res: Response, next: Nex
                 error: 'Invalid chain'
             })
     }
-    const chainId = chain === ETH_CHAIN ? ETH_CHAIN_ID :
-        (chain === BSC_CHAIN ? BSC_CHAIN_ID : null);
+    const chainIdMap: { [key: string]: number | null } = {
+        [ETH_CHAIN]: ETH_CHAIN_ID,
+        [BSC_CHAIN]: BSC_CHAIN_ID,
+      };
+      
+    const chainId = chainIdMap[chain] ?? null;
+
 
     const transRepo = getRepository(Transactions);
 
